@@ -96,6 +96,8 @@ module.exports = function (grunt) {
         delete options.htmllintrc;
 
         let { outputFile } = options;
+	delete options.outputFile;
+	
         let result = {
             files: []
         };
