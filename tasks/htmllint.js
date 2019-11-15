@@ -1,10 +1,67 @@
 'use strict';
 
-var reportTemplate = [
-    '<%= filePath %>: (<%= issue.code %>), ',
-    'line <%= issue.line %>, col <%= issue.column %>, ',
-    '<%= issue.msg %>'
-].join('');
+const path = require('path');
+const { readFileSync } = require('fs');
+
+const template = readFileSync(path.join(__dirname, 'template.html'), 'utf8')
+
+function formatIssues (issues, panelColor) {
+  return issues.map(issue => {
+    const extract = issue.code.split('<').join('&lt;');
+    const message = issue.msg.split('<').join('&lt;').split('"').join('&quot;');
+    const line = issue.line;
+    const column = issue.column;
+    const position = 'line: ' + line + ', column: ' + column;
+    const positionAudio = '(at line ' + line + ' and column ' + column + ')';
+    const entry =
+        '<tr class="msg-danger">' + 
+        '    <td class="location-col">' + line + ':' + column + '</td>' +
+        '    <td class="message-col">' + message + '</td>' +
+        '    <td class="rule-col">' + extract + '</td>' +
+        '</tr>';
+
+    return entry;
+  }).join('') || '';
+}
+
+function formatFile (file) {
+  const returnedErrors = formatIssues(file.errors, 'danger');
+  
+  const content =
+      '<tr class="danger">' +
+      '    <td>' +
+      '        <a class="toggle-link" href="javascript:;" onclick="toggleDetails(this)">' + file.name + '</a>' +
+      '    </td>' +
+      '    <td>' + file.errors.length + '</td>' +
+      '</tr>' +
+      '<tr class="details-row hidden">' +
+      '    <td colspan="2">' +
+      '        <table class="details-table">' +
+      '            <tbody>' + formatIssues(file.errors) +
+      '            </tbody>' +
+      '        </table>' +
+      '    </td>' +
+      '</tr>';
+  return content;
+}
+function sortErrors(a,b) {
+    return b.errors.length - a.errors.length;
+}
+function sortIssues(a,b) {
+    return a.line - b.line;
+}
+function makeReport(result) {
+
+  const messageFilter = 'Enter text to filter messages with';
+  const firstOccurrence = 'Warn about the first occurrence only';
+  result.files.sort(sortErrors);
+  const content = Object.values(result.files)
+    .map(formatFile)
+    .join('\n');
+
+
+  return template.replace('<!-- Content goes here -->', content);
+}
 
 module.exports = function (grunt) {
     grunt.registerMultiTask('htmllint', 'HTML5 linter and validator.', function () {
@@ -38,6 +95,16 @@ module.exports = function (grunt) {
         delete options.plugins;
         delete options.htmllintrc;
 
+        let { outputFile } = options;
+        let result = {
+            files: []
+        };
+        const destDir = path.dirname(outputFile);
+
+        if (!grunt.file.exists(destDir)) {
+            grunt.file.mkdir(destDir);
+        }
+        
         var lastPromise = Promise.resolve(null);
         this.filesSrc.forEach(function (filePath) {
             if (!grunt.file.exists(filePath)) {
@@ -55,28 +122,22 @@ module.exports = function (grunt) {
 
                 return htmllint(fileSrc, options);
             }).then(function (issues) {
+                issues.sort(sortIssues);
+                result.files.push({
+                    name: filePath,
+                    errors: issues                    
+                });
+                
                 if (issues === false) {
                     // skipped the file
                     skippedFiles++;
                     grunt.log.verbose.warn('Skipped file "' + filePath + '" (maxerr).');
                     return;
                 }
-
                 issues.forEach(function (issue) {
-                    var logMsg = grunt.template.process(reportTemplate, {
-                        data: {
-                            filePath: filePath,
-                            issue: {
-                                code: issue.code,
-                                line: issue.line,
-                                column: issue.column,
-                                msg: issue.msg || htmllint.messages.renderIssue(issue)
-                            }
-                        }
-                    });
-                    grunt.log.error(logMsg);
+                    issue.msg = issue.msg || htmllint.messages.renderIssue(issue);
                 });
-
+                
                 if (issues.length <= 0) {
                     grunt.log.verbose.ok(filePath + ' is lint free');
                 } else {
@@ -94,7 +155,9 @@ module.exports = function (grunt) {
 
         lastPromise
             .then(function () {
-
+                result.errorCount = this.errorAmount;
+                grunt.file.write(outputFile, makeReport(result));
+        
                 var resultMsg = [
                     'encountered ', errorAmount, ' errors in total\n',
                     errorFiles,
