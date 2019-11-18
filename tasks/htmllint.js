@@ -5,6 +5,78 @@ const { readFileSync } = require('fs');
 
 const template = readFileSync(path.join(__dirname, 'template.html'), 'utf8')
 
+function sortOccurrences(a, b) {
+  return b.count - a.count;
+};
+
+function formatOccurrences(result) {
+    var occurrences = [];
+    var filesWithErrors = 0;
+    
+    result.files.forEach(function (file) {
+        if (file.errors.length > 0) {
+            filesWithErrors ++;
+        }
+        file.errors.forEach(function(error) {
+            var foundOccurrence = false;
+
+            for (var x = 0; x < occurrences.length; x++) {
+                if (occurrences[x].code === error.code) {
+                    foundOccurrence = true;
+                    occurrences[x].count++;
+                }
+            }
+
+            if (!foundOccurrence) {
+                occurrences.push({ code: error.code, message: error.msg, count: 1});
+            }
+        });
+    });
+    occurrences.sort(sortOccurrences);
+    var summary = 
+        '<div class="table-wrapper occurrences">' +
+        '    <div class="table-column">'+
+        '        <h3>Most common errors</h3>' +
+        '        <table class="summary-table">' +
+        '            <tbody>';
+
+    occurrences.forEach(function(occurrence, index) {
+        var message = occurrence.message.split('<').join('&lt;').split('"').join('&quot;');
+        summary += 
+            '            <tr class="occurrence row-' + index + '">' +
+            '                <td>' + occurrence.code + ' - ' + message + '</td>' +
+            '                <td>' + occurrence.count + '</td>' +
+            '            </tr>';
+    });
+    summary +=
+        '            </tbody>' +
+        '        </table>' +
+        '    </div>' +
+        '    <div class="table-column">' +
+        '        <table class="summary-table">' +
+        '            <tbody>' +
+        '                <tr>' +
+        '                    <td>Files with errors</td>' +
+        '                    <td>' + filesWithErrors + '</td>' +
+        '                </tr>' +
+        '                <tr>' +
+        '                    <td>Clean files</td>' +
+        '                    <td>' + (result.files.length - filesWithErrors) +'</td>' +
+        '                </tr>' +
+        '            </tbody>' +
+        '            <tfoot>' +
+        '                <tr>' +
+        '                    <td>Total files linted</td>' +
+        '                    <td>' + result.files.length +'</td>' +
+        '                </tr>' +
+        '            </tfoot>' +
+        '        </table>' +
+        '    </div>' +
+        '</div>';
+
+    return summary;
+}
+
 function formatIssues (issues, panelColor) {
   return issues.map(issue => {
     const extract = issue.code.split('<').join('&lt;');
@@ -18,16 +90,16 @@ function formatIssues (issues, panelColor) {
         '    <td class="location-col">' + line + ':' + column + '</td>' +
         '    <td class="message-col">' + message + '</td>' +
         '    <td class="rule-col">' + extract + '</td>' +
-        '</tr>';
+        '</tr>\n';
 
     return entry;
   }).join('') || '';
 }
 
 function formatFile (file) {
-  const returnedErrors = formatIssues(file.errors, 'danger');
+    const returnedErrors = formatIssues(file.errors, 'danger');
   
-  const content =
+    const content =
       '<tr class="danger">' +
       '    <td>' +
       '        <a class="toggle-link" href="javascript:;" onclick="toggleDetails(this)">' + file.name + '</a>' +
@@ -41,7 +113,7 @@ function formatFile (file) {
       '            </tbody>' +
       '        </table>' +
       '    </td>' +
-      '</tr>';
+      '</tr>\n';
   return content;
 }
 function sortErrors(a,b) {
@@ -51,16 +123,17 @@ function sortIssues(a,b) {
     return a.line - b.line;
 }
 function makeReport(result) {
+    result.files.sort(sortErrors);
+    
+    const content = Object.values(result.files)
+        .map(formatFile)
+        .join('\n');
 
-  const messageFilter = 'Enter text to filter messages with';
-  const firstOccurrence = 'Warn about the first occurrence only';
-  result.files.sort(sortErrors);
-  const content = Object.values(result.files)
-    .map(formatFile)
-    .join('\n');
-
-
-  return template.replace('<!-- Content goes here -->', content);
+    const summary = formatOccurrences(result);
+    
+    return template
+            .replace('<!-- Summary goes here -->', summary)
+            .replace('<!-- Content goes here -->', content);
 }
 
 module.exports = function (grunt) {
@@ -96,8 +169,8 @@ module.exports = function (grunt) {
         delete options.htmllintrc;
 
         let { outputFile } = options;
-	delete options.outputFile;
-	
+        delete options.outputFile;
+        
         let result = {
             files: []
         };

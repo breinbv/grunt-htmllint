@@ -119,6 +119,9 @@ In lieu of a formal styleguide, take care to maintain the existing coding style.
 
 ## Release History
 
+### v0.3.1
+* forked, harcoded reporter added
+
 ### v0.2.7
 
 * `htmllint` -> 0.2.4
