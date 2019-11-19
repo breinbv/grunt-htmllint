@@ -1,14 +1,14 @@
 {
   "name": "grunt-htmllint",
   "description": "A grunt plugin for the unofficial HTML5 linter.",
-  "version": "0.3.1",
-  "homepage": "https://github.com/htmllint/grunt-htmllint",
+  "version": "0.3.2",
+  "homepage": "https://github.com/breinbv/grunt-htmllint",
   "repository": {
     "type": "git",
-    "url": "https://github.com/htmllint/grunt-htmllint.git"
+    "url": "https://github.com/breinbv/grunt-htmllint.git"
   },
   "bugs": {
-    "url": "https://github.com/htmllint/grunt-htmllint/issues"
+    "url": "https://github.com/breinbv/grunt-htmllint/issues"
   },
   "license": "ISC",
   "engines": {

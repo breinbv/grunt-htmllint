@@ -5,6 +5,14 @@ const { readFileSync } = require('fs');
 
 const template = readFileSync(path.join(__dirname, 'template.html'), 'utf8')
 
+function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 function sortOccurrences(a, b) {
   return b.count - a.count;
 };
@@ -12,11 +20,13 @@ function sortOccurrences(a, b) {
 function formatOccurrences(result) {
     var occurrences = [];
     var filesWithErrors = 0;
-    
+    var errorCount = 0;
     result.files.forEach(function (file) {
         if (file.errors.length > 0) {
             filesWithErrors ++;
         }
+        errorCount += file.errors.length;
+        
         file.errors.forEach(function(error) {
             var foundOccurrence = false;
 
@@ -36,18 +46,19 @@ function formatOccurrences(result) {
     var summary = 
         '<div class="table-wrapper occurrences">' +
         '    <div class="table-column">'+
-        '        <h3>Most common errors</h3>' +
+        '        <h3>Most common errors <a href="https://github.com/htmllint/htmllint/wiki/Option-by-Error-Code">(link)</a></h3>' +
         '        <table class="summary-table">' +
         '            <tbody>';
 
     occurrences.forEach(function(occurrence, index) {
-        var message = occurrence.message.split('<').join('&lt;').split('"').join('&quot;');
+        var message = escapeHTML(occurrence.message);
         summary += 
             '            <tr class="occurrence row-' + index + '">' +
             '                <td>' + occurrence.code + ' - ' + message + '</td>' +
             '                <td>' + occurrence.count + '</td>' +
             '            </tr>';
     });
+    
     summary +=
         '            </tbody>' +
         '        </table>' +
@@ -55,6 +66,10 @@ function formatOccurrences(result) {
         '    <div class="table-column">' +
         '        <table class="summary-table">' +
         '            <tbody>' +
+        '                <tr>' +
+        '                    <td>Total number of errors</td>' +
+        '                    <td>' + errorCount +'</td>' +
+        '                </tr>' +
         '                <tr>' +
         '                    <td>Files with errors</td>' +
         '                    <td>' + filesWithErrors + '</td>' +
@@ -77,10 +92,10 @@ function formatOccurrences(result) {
     return summary;
 }
 
-function formatIssues (issues, panelColor) {
+function formatIssues (issues) {
   return issues.map(issue => {
-    const extract = issue.code.split('<').join('&lt;');
-    const message = issue.msg.split('<').join('&lt;').split('"').join('&quot;');
+    const extract = escapeHTML(issue.code);
+    const message = escapeHTML(issue.msg);
     const line = issue.line;
     const column = issue.column;
     const position = 'line: ' + line + ', column: ' + column;
@@ -97,23 +112,29 @@ function formatIssues (issues, panelColor) {
 }
 
 function formatFile (file) {
-    const returnedErrors = formatIssues(file.errors, 'danger');
-  
-    const content =
-      '<tr class="danger">' +
-      '    <td>' +
-      '        <a class="toggle-link" href="javascript:;" onclick="toggleDetails(this)">' + file.name + '</a>' +
-      '    </td>' +
-      '    <td>' + file.errors.length + '</td>' +
-      '</tr>' +
-      '<tr class="details-row hidden">' +
-      '    <td colspan="2">' +
-      '        <table class="details-table">' +
-      '            <tbody>' + formatIssues(file.errors) +
-      '            </tbody>' +
-      '        </table>' +
-      '    </td>' +
-      '</tr>\n';
+    const returnedErrors = formatIssues(file.errors);
+    
+    if (file.errors.length > 0) {
+        return '<tr class="danger">' +
+            '    <td>' +
+            '        <a class="toggle-link" href="javascript:;" onclick="toggleDetails(this)">' + file.name + '</a>' +
+            '    </td>' +
+            '    <td>' + file.errors.length + '</td>' +
+            '</tr>' +
+            '<tr class="details-row hidden">' +
+            '    <td colspan="2">' +
+            '        <table class="details-table">' +
+            '            <tbody>' + formatIssues(file.errors) +
+            '            </tbody>' +
+            '        </table>' +
+            '    </td>' +
+            '</tr>\n';
+    } else {
+        return '<tr class="success">' +
+            '    <td>' + file.name + '</td>' +
+            '    <td>' + file.errors.length + '</td>' +
+            '</tr>';
+    }
   return content;
 }
 function sortErrors(a,b) {
